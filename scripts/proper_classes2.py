@@ -1,7 +1,6 @@
 from numpy import *
 import matplotlib.pyplot as plt
 import numpy as np
-
 class Circle:
     N = 0
     def __init__(self, C, r):
@@ -18,6 +17,7 @@ class Circle:
         self.gradient = zeros(2)
         self.N = Circle.N
         Circle.N += 1
+        print('circle création')
         
     def CC_intersection(self, circle):
         """
