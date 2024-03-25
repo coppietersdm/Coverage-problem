@@ -1,6 +1,7 @@
 from numpy import *
 import matplotlib.pyplot as plt
 import numpy as np
+
 class Circle:
     N = 0
     def __init__(self, C, r):
@@ -17,7 +18,7 @@ class Circle:
         self.gradient = zeros(2)
         self.N = Circle.N
         Circle.N += 1
-        print('circle création')
+        self.edges = []
         
     def CC_intersection(self, circle):
         """
@@ -77,12 +78,45 @@ class Circle:
         if(len(self.points) != 0):
             for i in range(int(self.points[0].Cout != self), len(self.points), 2):
                 self.gradient += array([[0,-1],[1,0]])@(self.points[i].P - self.points[i-1].P)
-    
+                self.edges.append(Edge(self.points[i-1].P,self.points[i].P,self))
+        for edge in self.edges:
+            edge.plot()
+        
     def plot(self):
         plt.plot(self.C[0], self.C[1], 'ro')
         theta = linspace(0,2*pi, 1000)
         plt.plot(self.C[0] + self.r*cos(theta), self.C[1] + self.r*sin(theta), 'k')
+
+class Edge():
+    def __init__(self, P1, P2, C):
+        self.P1 = P1
+        self.P2 = P2
+        self.C = C
     
+    def integrate(self):
+        theta1 = arctan2(self.P1[1]   - self.C.C[1], self.P1[0]   - self.C.C[0])
+        theta0 = arctan2(self.P2[1]   - self.C.C[1], self.P2[0]   - self.C.C[0])
+        if(theta1 < theta0):
+            theta1 += 2*pi
+        theta = linspace(theta1, theta0, 100)
+        x = self.C.C[0] + self.C.r*cos(theta)
+        y = self.C.C[1] + self.C.r*sin(theta)
+        dx = diff(x)
+        dy = diff(y)
+        x = x[:-1]
+        y = y[:-1]
+        return (dx@y - dy@x)/2
+        
+        
+        
+    def plot(self):
+        theta0 = arctan2(self.P1[1]   - self.C.C[1], self.P1[0]   - self.C.C[0])
+        theta1 = arctan2(self.P2[1]   - self.C.C[1], self.P2[0]   - self.C.C[0])
+        if(theta1 < theta0):
+            theta1 += 2*pi
+        theta = linspace(theta0, theta1, 100)
+        plt.plot(self.C.C[0]+ self.C.r*cos(theta), self.C.C[1]+ self.C.r*sin(theta), 'b', linewidth=3)
+
 class Point:
     def __init__(self, P, Cin, Cout):
         self.P = P
@@ -128,6 +162,7 @@ class Graph():
         for circle in self.circles:
             circle.points = []
             circle.gradient *= 0
+            circle.edges = []
         for pedge in self.pedges:
             pedge.points = []
         
@@ -183,13 +218,19 @@ class Graph():
         return H
     
     def plot(self):
+        
         for circle in self.circles:
             circle.plot()
             plt.arrow(circle.C[0], circle.C[1], circle.gradient[0], circle.gradient[1])
             for point in circle.points:
                 point.plot()
+            # for edge in circle.edges:
+            #     edge.plot()
+                
+        
         for pedge in self.pedges:
             pedge.plot()
+        
     
 class Pedge():
     def __init__(self, P1, P2):
@@ -225,8 +266,6 @@ class Pedge():
         plt.plot([self.P1[0], self.P2[0]],[self.P1[1], self.P2[1]], 'r')
         for point in self.points:
             point.plot()
-        
-
 
 graph = Graph()
 for i in range(1):
@@ -234,11 +273,8 @@ for i in range(1):
 
 graph.polygon([[0,0],[0,20],[20,20],[20,0]])
 
-for i in range(5):
-    graph.update_with_gradient(0.1)
-    print(i)
-for i in range(3):
-    graph.update_with_hessian()
+print(graph.gradient())
+
     
 graph.calculations()
     
