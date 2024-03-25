@@ -105,6 +105,7 @@ class Edge():
         dy = diff(y)
         x = x[:-1]
         y = y[:-1]
+
         return (dx@y - dy@x)/2
         
         
