@@ -3,7 +3,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def is_pos_def(x):
-    return np.all(np.linalg.eigvals(x) <= 0)
+    return np.all(np.linalg.eigvals(x) >= 0)
+
+Rpi2 = np.array([[0,-1],[1,0]])
 
 class Circle():
     N = 0
@@ -77,7 +79,7 @@ class Circle():
         if(self.points[0].Cin == self):
             self.points = self.points[1:] + self.points[0:1]
         for i in range(0, len(self.points),2):
-            gradient -= self.points[i+1].P- self.points[i].P
+            gradient -= self.points[i+1].P - self.points[i].P
         gradient = array([-gradient[1], gradient[0]])
         self.gradient = gradient
         return gradient
@@ -92,8 +94,7 @@ class Circle():
             theta2 = arctan2(edge[1][1] - self.C[1],edge[1][0] - self.C[0])
             if(theta1 > theta2):
                 theta2 += 2*pi
-            print(theta2 - theta1)
-            theta = linspace(theta1, theta2, 1000)
+            theta = linspace(theta1, theta2, 10000)
             x = self.C[0] + self.r*cos(theta)
             y = self.C[1] + self.r*sin(theta)
             if(plot):
@@ -145,8 +146,8 @@ class Segment():
         for i in range(1,len(self.points),2):
             if(plot):
                 plt.plot([self.points[i-1].P[0], self.points[i].P[0]],[self.points[i-1].P[1], self.points[i].P[1]], 'b')
-            x = linspace(self.points[i-1].P[0], self.points[i].P[0], 1000)
-            y = linspace(self.points[i-1].P[1], self.points[i].P[1], 1000)
+            x = linspace(self.points[i-1].P[0], self.points[i].P[0], 10000)
+            y = linspace(self.points[i-1].P[1], self.points[i].P[1], 10000)
             dx = diff(x)
             dy = diff(y)
             integral += (dx@y[1:] - dy@x[1:])/2
@@ -169,7 +170,8 @@ class Point():
         self.order = 0
     
     def subhessian(self, R1, R2):
-        self.h = outer(R1, R2)/abs(cross(R1,R2))
+        #self.h = outer(R1, R2)/abs(cross(R1,R2))
+        self.h = outer(R1, R2)/(R1@(Rpi2@R2))
     
     def plot(self):
         plt.plot(self.P[0], self.P[1], 'bo')
@@ -179,6 +181,8 @@ class Graph():
     def __init__(self):
         self.segments = []
         self.circles = []
+        Circle.N = 0
+        Segment.N = 0
     
     def clean_graph(self):
         for circle in self.circles:
@@ -188,7 +192,7 @@ class Graph():
         Point.N  = 0
     
     def compute_gradients(self):
-        graph.clean_graph()
+        self.clean_graph()
         for i in range(len(self.circles)):
             for j in range(i+1,len(self.circles)):
                 self.circles[i].CC_intersection(self.circles[j])
@@ -205,8 +209,11 @@ class Graph():
         for i in range(len(lst)):
             self.segments.append(Segment(lst[i], lst[(i+1)%len(lst)]))
     
+    def plot_positions(self):
+        for circle in self.circles:
+            plt.plot(circle.C[0], circle.C[1], 'r+')
+    
     def plot(self):
-        self.compute_gradients()
         for circle in self.circles:
             circle.plot()
             circle.integrate(plot=True)
@@ -227,138 +234,135 @@ class Graph():
         return integral
     
     def graph_gradient(self):
-        self.compute_gradients()
         gradient = zeros(2*len(self.circles))
         for i in range(len(self.circles)):
             gradient[2*i:2*i+2] = self.circles[i].gradient
         return gradient
     
-    def update_with_gradient(self, epsilon):
-        self.clean_graph()
-        self.compute_gradients()
-        for circle in self.circles:
-            plt.plot(circle.C[0], circle.C[1], 'rx')
-            circle.C += circle.gradient*epsilon
-    
-    def update_with_saturated_gradient(self, epsilon):
-        self.clean_graph()
-        self.compute_gradients()
-        for circle in self.circles:
-            plt.plot(circle.C[0], circle.C[1], 'rx')
-            circle.gradient *= 1
-            if(linalg.norm(circle.gradient) != 0):
-                circle.C += circle.gradient/linalg.norm(circle.gradient)*min(epsilon, linalg.norm(circle.gradient))
-
-    
     def graph_hessian(self):
-        self.clean_graph()
-        self.compute_gradients()
         H = zeros((2*len(self.circles), 2*len(self.circles)))
         for circle in self.circles:
             for point in circle.points:
                 SH = zeros((2*len(self.circles), 2*len(self.circles)))
                 if(type(point.Cin) == type(point.Cout)):
                     i = point.Cin.N; j = point.Cout.N
-                    SH[2*i:2*i+2,2*i:2*i+2] = point.h
-                    SH[2*i:2*i+2,2*j:2*j+2] = -point.h.T
-                    SH[2*j:2*j+2,2*i:2*i+2] = -point.h
-                    SH[2*j:2*j+2,2*j:2*j+2] = point.h.T
+                    SH[2*i:2*i+2,2*i:2*i+2] = -point.h
+                    SH[2*i:2*i+2,2*j:2*j+2] = point.h
+                    SH[2*j:2*j+2,2*i:2*i+2] = point.h.T
+                    SH[2*j:2*j+2,2*j:2*j+2] = -point.h.T
                 elif(point.Cin == circle):
                     i = circle.N
-                    SH[2*i:2*i+2,2*i:2*i+2] = -2*point.h.T
-                else:
-                    i = circle.N
                     SH[2*i:2*i+2,2*i:2*i+2] = -2*point.h
+                else:
+                    j = circle.N
+                    SH[2*j:2*j+2,2*j:2*j+2] = -2*point.h.T
                 H += SH
                     
         return H/2
-        
-    def update_with_saturated_local_hessian(self, epsilon):
-        self.clean_graph()
-        self.compute_gradients()
-        H = self.graph_hessian()
-        for circle in self.circles:
-            h = H[2*circle.N:2*circle.N+2,2*circle.N:2*circle.N+2]
-            if(is_pos_def(h)):
-                circle.gradient = -linalg.pinv(h)@circle.gradient
-                plt.plot(circle.C[0], circle.C[1], 'kx')
-            else:
-                plt.plot(circle.C[0], circle.C[1], 'rx')
-            if(linalg.norm(circle.gradient) != 0):
-                circle.C += circle.gradient/linalg.norm(circle.gradient)*min(epsilon, linalg.norm(circle.gradient))
+
+
+R = 0.6
+ 
+def plot(x):
+    graph = Graph()
+    graph.polygon(array([[-1,-1],[-1,1],[1,1],[1,-1]])+1)
+    positions = np.reshape(x, (-1,2))
+
+    for position in positions:
+        graph.circles.append(Circle(position, R))
+    graph.compute_gradients()
+    graph.plot()
             
-    def update_with_local_hessian(self, epsilon):
-        self.clean_graph()
-        self.compute_gradients()
-        H = self.graph_hessian()
-        for circle in self.circles:
-            h = H[2*circle.N:2*circle.N+2,2*circle.N:2*circle.N+2]
-            if(is_pos_def(h)):
-                circle.gradient = -linalg.pinv(h)@circle.gradient
-            plt.plot(circle.C[0], circle.C[1], 'rx')
-            circle.C += circle.gradient*epsilon
+def function(x):
+    graph = Graph()
+    graph.polygon(array([[-1,-1],[-1,1],[1,1],[1,-1]])+1)
+    positions = np.reshape(x, (-1,2))
 
-
-
-
-def gradient_descent(graph, epsilon,steps):
-    for i in range(steps):
-        graph.update_with_gradient(epsilon)
-    graph.plot()
-    plt.axis('equal')
+    for position in positions:
+        graph.circles.append(Circle(position, R))
+        
+    graph.compute_gradients()
+    graph.plot_positions()
+    return graph.integral(), graph.graph_gradient(), graph.graph_hessian()
     
-def saturated_gradient_descent(graph, epsilon,steps):
-    surface = []
-    for i in range(steps):
-        graph.update_with_saturated_gradient(epsilon)
-        surface.append(graph.integral())
-    graph.plot()
-    plt.axis('equal')
+from scipy.optimize import minimize
+
+
+def fun(x):
+    return function(x)[0]
+
+def jac(x):
+    return -function(x)[1]
+
+def hessi(x):
+    return -function(x)[2]
+
+def hessi_diag(x):
+    hessi = -function(x)[2]
+    H = hessi*0
+    for i in range(len(x)//2):
+        H[2*i:2*i+2,2*i:2*i+2] = hessi[2*i:2*i+2,2*i:2*i+2]
+    return H
+        
+
+poly_surf = fun([])
+N = 4
+x = random.rand(2*N)*2
+
+
+
+surface = []
+prediction = []
+epsilon = 0.1
+hessian_prediction = []
+hessian_diagonal_prediction = []
+
+max_step = 0.1
+
+for i in range(100):
+    F, G, H = function(x)
+    dx = G*epsilon
+    x += dx
+    surface.append((poly_surf-F)/poly_surf)
+    prediction.append(G@G * epsilon)
+    hessian_prediction.append(G@dx - 0.5*dx@(H@dx))
     
-    return surface
+plot(x)
+plt.axis('equal')
+plt.show()
 
-def local_hessian_descent(graph,epsilon,steps):
-    for i in range(steps):
-        graph.update_with_local_hessian(epsilon)
-    graph.plot()
-    plt.axis('equal')
-    
-def local_saturated_hessian_descent(graph,epsilon,steps):
-    surface = []
-    for i in range(steps):
-        graph.update_with_saturated_local_hessian(epsilon)
-        surface.append(graph.integral())
-    graph.plot()
-    plt.axis('equal')
-    return surface
-    
-    
-steps = 20
-
-
-graph = Graph()
-graph.polygon(array([[-1,-1],[-1,1],[1,1],[1,-1]])+1)
-graph.compute_gradients()
-polygon_surface = graph.integral()
-
-Ncircles = 5
-R = 1/sqrt(pi)
-positions = [random.rand(2) for i in range(Ncircles)]
-positions[0] = array([0,0])
-
-for i in range(Ncircles):
-    graph.circles.append(Circle(positions[i], R))
-    
-epsilon1 = 0.1
-surface1 = saturated_gradient_descent(graph, epsilon1, steps)
-plt.title("Saturated Gradient Descent: stepsize = " + str(epsilon1))
-plt.savefig("graph1.pdf")
-plt.clf()
-
-graph.clean_graph()
-    
-
-plt.plot((polygon_surface - array(surface1)), label = str(epsilon1))
+# plt.plot(surface, label = 'surface')
+GP = prediction[:-1]/poly_surf
+HP = hessian_prediction[:-1]/poly_surf
+# HDP = hessian_diagonal_prediction[:-1]/poly_surf
+P = np.diff(surface)
+plt.plot(P, label = 'dS')
+plt.plot(GP, label = 'gradient')
+plt.plot(HP, label = 'hessian')
+# plt.plot(abs(HDP-P), label = 'hessian_diagonal')
+print(np.exp(np.mean(np.log((abs(HP - P)/abs(GP - P))))))
+# print(np.exp(np.mean(np.log((abs(HDP - P)/abs(GP - P))))))
 plt.legend()
-plt.grid()
-plt.savefig("surface.pdf")
+plt.show()
+
+
+
+# F0 = fun(x)
+# G0 = jac(x)
+# H0 = hessi(x)
+# print(np.round(H0,3))
+
+# dx = random.rand(2*N)/1000
+# # dx = np.array([0,0,0.01,0.01,0,0])
+
+# F1 = fun(x + dx)
+# print(F1-F0)
+# print(G0@dx)
+
+# G1 = jac(x + dx)
+# print((G1 - G0))
+# print((-H0@dx))
+
+# plot(x)
+# plt.axis('equal')
+# plt.show()

@@ -278,7 +278,8 @@ print(graph.gradient())
 
     
 graph.calculations()
-    
+print(graph.gradient())
+print(graph.hessian())
 graph.plot()
 
 plt.axis('equal')
