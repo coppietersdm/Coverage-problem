@@ -70,24 +70,33 @@ class Circle():
                         break
                     else:
                         self.points[j%len(self.points)].order += 1
+
+            
+    def remove_inner_points(self):
         self.points = list(filter(lambda x: x.order == 0, self.points))
 
     def compute_gradient(self):
         if(len(self.points)==0):
             return zeros(2)
-        gradient = zeros(2)
-        if(self.points[0].Cin == self):
-            self.points = self.points[1:] + self.points[0:1]
-        for i in range(0, len(self.points),2):
-            gradient -= self.points[i+1].P - self.points[i].P
-        gradient = array([-gradient[1], gradient[0]])
-        self.gradient = gradient
-        return gradient
+        try:
+            gradient = zeros(2)
+            if(self.points[0].Cin == self):
+                self.points = self.points[1:] + self.points[0:1]
+            for i in range(0, len(self.points),2):
+                gradient -= self.points[i+1].P - self.points[i].P
+            gradient = array([-gradient[1], gradient[0]])
+            self.gradient = gradient
+            return gradient
+        except:
+            return zeros(2)
     
     def integrate(self, plot=False):
         self.edges = []
-        for i in range(0, len(self.points),2):
-            self.edges.append([self.points[i].P,self.points[i+1].P])
+        try:
+            for i in range(0, len(self.points),2):
+                self.edges.append([self.points[i].P,self.points[i+1].P])
+        except:
+            return -1
         integral = 0
         for edge in self.edges:
             theta1 = arctan2(edge[0][1] - self.C[1],edge[0][0] - self.C[0])
@@ -100,9 +109,6 @@ class Circle():
                 x = self.C[0] + self.r*cos(theta)
                 y = self.C[1] + self.r*sin(theta)
                 plt.plot(x,y, 'b')
-            # dx = diff(x)
-            # dy = diff(y)
-            # integral += (dx@y[1:] - dy@x[1:])/2
             integral -= self.r**2*(theta2-theta1)/2 + np.cross(self.C, edge[1] - edge[0])/2
         
         if(self.isolated):
@@ -133,37 +139,37 @@ class Segment():
         self.points.append(Point(self.P1, None, self))
         self.points.append(Point(self.P2, self, None))
         self.points.sort(key = lambda x: (x.P-self.P1)@(self.P2-self.P1))
+
         for i in range(len(self.points)):
             s = (self.points[i].P - self.P1)@(self.P2-self.P1)/linalg.norm(self.P2-self.P1)**2
+
             if(self.points[i].Cin == self):
                 for j in range(i+1, len(self.points)):
                     if(self.points[j].Cin == self.points[i].Cout):
                         break
                     else:
                         self.points[j].order += 1
+            if(self.points[i].Cin == None):
+                for j in range(0,i):
+                    self.points[j].order += 1
+                    
+    def remove_inner_points(self):
         self.points = [x for x in filter(lambda x: x.order == 0, self.points)]
 
     def integrate(self, plot = False):
         integral = 0
-        
         for i in range(1,len(self.points),2):
             AA = self.points[i-1].P
             BB = self.points[i].P
             if(plot):
                 plt.plot([self.points[i-1].P[0], self.points[i].P[0]],[self.points[i-1].P[1], self.points[i].P[1]], 'b')
-            # x = linspace(self.points[i-1].P[0], self.points[i].P[0], 1000)
-            # y = linspace(self.points[i-1].P[1], self.points[i].P[1], 1000)
-            # dx = diff(x)
-            # dy = diff(y)
-            # integral += (dx@y[1:] - dy@x[1:])/2
-            # print((dx@y[1:] - dy@x[1:])/2, ' = ', (AA[1]*BB[0] - AA[0]*BB[1])/2)
             integral += (AA[1]*BB[0] - AA[0]*BB[1])/2
             
         return integral
     
     def plot(self):
         plt.plot([self.P1[0], self.P2[0]],[self.P1[1], self.P2[1]], 'r')
-        #plt.text((self.P1[0] + self.P2[0])/2,(self.P1[1] + self.P2[1])/2,str(self.N))
+        plt.text((self.P1[0] + self.P2[0])/2,(self.P1[1] + self.P2[1])/2,str(self.N))
 
 class Point():
     N = 0
@@ -182,7 +188,7 @@ class Point():
     
     def plot(self):
         plt.plot(self.P[0], self.P[1], 'bo')
-        #plt.text(self.P[0], self.P[1], str(self.order))   
+        plt.text(self.P[0], self.P[1], str(self.order))   
         
 class Graph():
     def __init__(self):
@@ -206,11 +212,18 @@ class Graph():
             for j in range(len(self.segments)):
                 self.circles[i].CS_intersection(self.segments[j])
         
-        for circle in self.circles:
-            circle.filter_points()
-            circle.compute_gradient()
         for segment in self.segments:
             segment.filter_points()
+        for circle in self.circles:
+            circle.filter_points()
+            
+        for segment in self.segments:
+            segment.remove_inner_points()
+        for circle in self.circles:
+            circle.remove_inner_points()
+            
+        for circle in self.circles:
+            circle.compute_gradient()
     
     def polygon(self, lst):
         for i in range(len(lst)):
@@ -221,16 +234,17 @@ class Graph():
             plt.plot(circle.C[0], circle.C[1], 'r+')
     
     def plot(self):
-        for circle in self.circles:
-            circle.plot()
-            circle.integrate(plot=True)
-            for point in circle.points:
-                point.plot()
         for segment in self.segments:
             segment.plot()
             segment.integrate(plot=True)
             for point in segment.points:
                 point.plot()
+        for circle in self.circles:
+            circle.plot()
+            circle.integrate(plot=True)
+            for point in circle.points:
+                point.plot()
+        
     
     def integral(self):
         integral = 0
@@ -280,6 +294,7 @@ def plot(x):
         graph.circles.append(Circle(position, R))
     graph.compute_gradients()
     graph.plot()
+
     plt.axis('equal')
     plt.show()
             
@@ -318,18 +333,21 @@ def pinv_hessi_diag(x, epsilon):
     return H
 
 
-x = [2.0,1.5]
-
-plot(x)
 
 
 
 
+xb = [-0.3740442, -1.99896368, -0.28323218, -1.84930609,  1.83896229,  1.47239203]
+xb = np.array(xb)
+plot(xb)
+try:
+    for i in range(100):
+        x = np.random.rand(6)*4 - 2
+        plot(x)
+except:
+    print(x)
 
 
-# # x = [2,2]
-
-# # plot(x)
 # N = 100
 
 # Z = np.array([[fun([x,y]) for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
