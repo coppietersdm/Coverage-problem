@@ -282,7 +282,7 @@ class Graph():
         return H/2
 
 
-R = 1.0
+R = 0.5
 iii = 0
 def plot(x):
     global iii  # Add this line to access the global variable iii
@@ -337,38 +337,38 @@ def pinv_hessi_diag(x, epsilon):
 
 
 
-xb = [-0.3740442, -1.99896368, -0.28323218, -1.84930609,  1.83896229,  1.47239203]
-xb = np.array(xb)
-plot(xb)
-try:
-    for i in range(100):
-        x = np.random.rand(6)*4 - 2
-        plot(x)
-except:
-    print(x)
+# xb = [-0.3740442, -1.99896368, -0.28323218, -1.84930609,  1.83896229,  1.47239203]
+# xb = np.array(xb)
+# plot(xb)
+# try:
+#     for i in range(100):
+#         x = np.random.rand(6)*4 - 2
+#         plot(x)
+# except:
+#     print(x)
 
 
-# N = 100
+N = 30
 
-# Z = np.array([[fun([x,y]) for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
-# U = np.array([[jac([x,y])[0] for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
-# V = np.array([[jac([x,y])[1] for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
-# X = np.array([[x for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
-# Y = np.array([[y for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
-# print(Z)
+Z = np.array([[fun([x,y,1,1]) for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
+U = np.array([[jac([x,y,1,1])[0] for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
+V = np.array([[jac([x,y,1,1])[1] for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
+X = np.array([[x for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
+Y = np.array([[y for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
+print(Z)
 
-# # fig = plt.figure()
-# # ax = fig.add_subplot(111, projection='3d')
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
 
-# # # Tracé de la surface
-# # surf = ax.plot_surface(X, Y, Z)
-# # plt.show()
+# Tracé de la surface
+surf = ax.plot_surface(X, Y, Z)
+plt.show()
 
-# plt.streamplot(X, Y, -U, -V, density=2, arrowsize=2)
-# plt.xlabel('X')
-# plt.ylabel('Y')
-# plt.title('Streamplot of fun(x, y)')
-# plt.show()
+plt.streamplot(X, Y, -U, -V, density=2, arrowsize=2)
+plt.xlabel('X')
+plt.ylabel('Y')
+plt.title('Streamplot of fun(x, y)')
+plt.show()
 
 
 # results99 = np.array([0,0])
