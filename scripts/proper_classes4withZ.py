@@ -27,7 +27,6 @@ class Circle():
         self.isolated = False
         self.Rgradient = 0
         
-        
     def CC_intersection(self, circle):
         D = circle.C - self.C
         d = linalg.norm(D)
@@ -82,9 +81,14 @@ class Circle():
             self.points = self.points[1:] + self.points[0:1]
         for i in range(0, len(self.points),2):
             gradient -= self.points[i+1].P - self.points[i].P
-            self.Rgradient += (arctan2(self.points[i+1][1],self.points[i+1][0])- arctan2(self.points[i][1]-self.points[i][0]))*self.R
+            self.Rgradient -= (arctan2(self.points[i+1].P[1]-self.C[1],self.points[i+1].P[0]-self.C[0])- arctan2(self.points[i].P[1]-self.C[1],self.points[i].P[0]-self.C[0]))*self.r
         gradient = array([-gradient[1], gradient[0]])
         self.gradient = gradient
+        print('rgrad = ', self.N, self.Rgradient)
+        if(self.Rgradient > 0):
+            self.Rgradient -= 2*pi*self.r
+        if(self.isolated):
+            self.Rgradient += 2*pi*self.r
         return gradient
     
     def integrate(self, plot=False):
@@ -242,29 +246,10 @@ class Graph():
             gradient[2*i:2*i+2] = self.circles[i].gradient
         return gradient
     
-    def graph_hessian(self):
-        H = zeros((2*len(self.circles), 2*len(self.circles)))
-        for circle in self.circles:
-            for point in circle.points:
-                SH = zeros((2*len(self.circles), 2*len(self.circles)))
-                if(type(point.Cin) == type(point.Cout)):
-                    i = point.Cin.N; j = point.Cout.N
-                    SH[2*i:2*i+2,2*i:2*i+2] = -point.h
-                    SH[2*i:2*i+2,2*j:2*j+2] = point.h
-                    SH[2*j:2*j+2,2*i:2*i+2] = point.h.T
-                    SH[2*j:2*j+2,2*j:2*j+2] = -point.h.T
-                elif(point.Cin == circle):
-                    i = circle.N
-                    SH[2*i:2*i+2,2*i:2*i+2] = -2*point.h
-                else:
-                    j = circle.N
-                    SH[2*j:2*j+2,2*j:2*j+2] = -2*point.h.T
-                H += SH
-                    
-        return H/2
 
 
-R = 0.6
+
+R = 0.5
  
 def plot(x):
     graph = Graph()
@@ -286,7 +271,10 @@ def function(x):
         
     graph.compute_gradients()
     graph.plot_positions()
-    return graph.integral(), graph.graph_gradient(), graph.graph_hessian()
+    rgrad = 0
+    for circle in graph.circles:
+        rgrad += circle.Rgradient
+    return graph.integral(), graph.graph_gradient(), rgrad
     
 from scipy.optimize import minimize
 
@@ -297,59 +285,59 @@ def fun(x):
 def jac(x):
     return -function(x)[1]
 
-def hessi(x):
-    return -function(x)[2]
-
 def hessi_diag(x):
     hessi = -function(x)[2]
     H = hessi*0
     for i in range(len(x)//2):
         H[2*i:2*i+2,2*i:2*i+2] = hessi[2*i:2*i+2,2*i:2*i+2]
     return H
+
+def rgrad(x):
+    return function(x)[3]
         
 
 poly_surf = fun([])
 N = 4
 x = random.rand(2*N)*2
 
-print(fun(x))
-R += 0.01
-print(fun(x))
-
-
-# surface = []
-# prediction = []
-# epsilon = 0.1
-# hessian_prediction = []
-# hessian_diagonal_prediction = []
-
-# max_step = 0.1
-
-# for i in range(100):
-#     F, G, H = function(x)
-#     dx = G*epsilon
-#     x += dx
-#     surface.append((poly_surf-F)/poly_surf)
-#     prediction.append(G@G * epsilon)
-#     hessian_prediction.append(G@dx - 0.5*dx@(H@dx))
-    
+# F1 = fun(x)
 # plot(x)
+# R += 0.001
+# F2 = fun(x)
+
+# print(F2-F1)
+# print(rgrad(x)*0.001)
 # plt.axis('equal')
 # plt.show()
 
-# # plt.plot(surface, label = 'surface')
-# GP = prediction[:-1]/poly_surf
-# HP = hessian_prediction[:-1]/poly_surf
-# # HDP = hessian_diagonal_prediction[:-1]/poly_surf
-# P = np.diff(surface)
-# plt.plot(P, label = 'dS')
-# plt.plot(GP, label = 'gradient')
-# plt.plot(HP, label = 'hessian')
-# # plt.plot(abs(HDP-P), label = 'hessian_diagonal')
-# print(np.exp(np.mean(np.log((abs(HP - P)/abs(GP - P))))))
-# # print(np.exp(np.mean(np.log((abs(HDP - P)/abs(GP - P))))))
-# plt.legend()
-# plt.show()
+surface = []
+prediction = []
+epsilon = 0.1
+hessian_prediction = []
+hessian_diagonal_prediction = []
+
+max_step = 0.1
+
+plot(x)
+plt.axis('equal')
+plt.show()
+
+for i in range(200):
+    F, G, H, rgrad = function(x)
+    dx = G*epsilon
+    x += dx
+    surface.append((poly_surf-F)/poly_surf)
+    prediction.append(G@G * epsilon)
+    hessian_prediction.append(G@dx - 0.5*dx@(H@dx))
+    R += -0.001*(rgrad+3+linalg.norm(G))
+    
+plot(x)
+plt.axis('equal')
+plt.show()
+
+
+plt.plot(surface, label = 'dS')
+plt.show()
 
 
 

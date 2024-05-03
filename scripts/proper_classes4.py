@@ -94,14 +94,17 @@ class Circle():
             theta2 = arctan2(edge[1][1] - self.C[1],edge[1][0] - self.C[0])
             if(theta1 > theta2):
                 theta2 += 2*pi
-            theta = linspace(theta1, theta2, 10000)
-            x = self.C[0] + self.r*cos(theta)
-            y = self.C[1] + self.r*sin(theta)
+            
             if(plot):
+                theta = linspace(theta1, theta2, 100)
+                x = self.C[0] + self.r*cos(theta)
+                y = self.C[1] + self.r*sin(theta)
                 plt.plot(x,y, 'b')
-            dx = diff(x)
-            dy = diff(y)
-            integral += (dx@y[1:] - dy@x[1:])/2
+            # dx = diff(x)
+            # dy = diff(y)
+            # integral += (dx@y[1:] - dy@x[1:])/2
+            integral -= self.r**2*(theta2-theta1)/2 + np.cross(self.C, edge[1] - edge[0])/2
+        
         if(self.isolated):
             integral -= pi*self.r**2
         return integral
@@ -144,19 +147,23 @@ class Segment():
         integral = 0
         
         for i in range(1,len(self.points),2):
+            AA = self.points[i-1].P
+            BB = self.points[i].P
             if(plot):
                 plt.plot([self.points[i-1].P[0], self.points[i].P[0]],[self.points[i-1].P[1], self.points[i].P[1]], 'b')
-            x = linspace(self.points[i-1].P[0], self.points[i].P[0], 10000)
-            y = linspace(self.points[i-1].P[1], self.points[i].P[1], 10000)
-            dx = diff(x)
-            dy = diff(y)
-            integral += (dx@y[1:] - dy@x[1:])/2
-        
+            # x = linspace(self.points[i-1].P[0], self.points[i].P[0], 1000)
+            # y = linspace(self.points[i-1].P[1], self.points[i].P[1], 1000)
+            # dx = diff(x)
+            # dy = diff(y)
+            # integral += (dx@y[1:] - dy@x[1:])/2
+            # print((dx@y[1:] - dy@x[1:])/2, ' = ', (AA[1]*BB[0] - AA[0]*BB[1])/2)
+            integral += (AA[1]*BB[0] - AA[0]*BB[1])/2
+            
         return integral
     
     def plot(self):
         plt.plot([self.P1[0], self.P2[0]],[self.P1[1], self.P2[1]], 'r')
-        plt.text((self.P1[0] + self.P2[0])/2,(self.P1[1] + self.P2[1])/2,str(self.N))
+        #plt.text((self.P1[0] + self.P2[0])/2,(self.P1[1] + self.P2[1])/2,str(self.N))
 
 class Point():
     N = 0
@@ -175,7 +182,7 @@ class Point():
     
     def plot(self):
         plt.plot(self.P[0], self.P[1], 'bo')
-        plt.text(self.P[0], self.P[1], str(self.order))   
+        #plt.text(self.P[0], self.P[1], str(self.order))   
         
 class Graph():
     def __init__(self):
@@ -261,28 +268,31 @@ class Graph():
         return H/2
 
 
-R = 0.6
- 
+R = 1.0
+iii = 0
 def plot(x):
+    global iii  # Add this line to access the global variable iii
     graph = Graph()
-    graph.polygon(array([[-1,-1],[-1,1],[1,1],[1,-1]])+1)
+    graph.polygon(array([[-1,-1],[-1,1],[1,1],[1,-1]])*0.9)
     positions = np.reshape(x, (-1,2))
 
     for position in positions:
         graph.circles.append(Circle(position, R))
     graph.compute_gradients()
     graph.plot()
+    plt.axis('equal')
+    plt.show()
             
 def function(x):
     graph = Graph()
-    graph.polygon(array([[-1,-1],[-1,1],[1,1],[1,-1]])+1)
+    graph.polygon(array([[-1,-1],[-1,1],[1,1],[1,-1]]))
     positions = np.reshape(x, (-1,2))
 
     for position in positions:
         graph.circles.append(Circle(position, R))
         
     graph.compute_gradients()
-    graph.plot_positions()
+    #graph.plot_positions()
     return graph.integral(), graph.graph_gradient(), graph.graph_hessian()
     
 from scipy.optimize import minimize
@@ -297,72 +307,256 @@ def jac(x):
 def hessi(x):
     return -function(x)[2]
 
-def hessi_diag(x):
-    hessi = -function(x)[2]
+def pinv_hessi_diag(x, epsilon):
+    hessi = function(x)[2]
     H = hessi*0
     for i in range(len(x)//2):
-        H[2*i:2*i+2,2*i:2*i+2] = hessi[2*i:2*i+2,2*i:2*i+2]
+        if(is_pos_def(hessi[2*i:2*i+2,2*i:2*i+2])):
+            H[2*i:2*i+2,2*i:2*i+2] = linalg.pinv(hessi[2*i:2*i+2,2*i:2*i+2])
+        else:
+            H[2*i:2*i+2,2*i:2*i+2] = eye(2)*epsilon
     return H
-        
-
-poly_surf = fun([])
-N = 4
-x = random.rand(2*N)*2
 
 
+x = [2.0,1.5]
 
-surface = []
-prediction = []
-epsilon = 0.1
-hessian_prediction = []
-hessian_diagonal_prediction = []
-
-max_step = 0.1
-
-for i in range(100):
-    F, G, H = function(x)
-    dx = G*epsilon
-    x += dx
-    surface.append((poly_surf-F)/poly_surf)
-    prediction.append(G@G * epsilon)
-    hessian_prediction.append(G@dx - 0.5*dx@(H@dx))
-    
 plot(x)
-plt.axis('equal')
-plt.show()
-
-# plt.plot(surface, label = 'surface')
-GP = prediction[:-1]/poly_surf
-HP = hessian_prediction[:-1]/poly_surf
-# HDP = hessian_diagonal_prediction[:-1]/poly_surf
-P = np.diff(surface)
-plt.plot(P, label = 'dS')
-plt.plot(GP, label = 'gradient')
-plt.plot(HP, label = 'hessian')
-# plt.plot(abs(HDP-P), label = 'hessian_diagonal')
-print(np.exp(np.mean(np.log((abs(HP - P)/abs(GP - P))))))
-# print(np.exp(np.mean(np.log((abs(HDP - P)/abs(GP - P))))))
-plt.legend()
-plt.show()
 
 
 
-# F0 = fun(x)
-# G0 = jac(x)
-# H0 = hessi(x)
-# print(np.round(H0,3))
 
-# dx = random.rand(2*N)/1000
-# # dx = np.array([0,0,0.01,0.01,0,0])
 
-# F1 = fun(x + dx)
-# print(F1-F0)
-# print(G0@dx)
 
-# G1 = jac(x + dx)
-# print((G1 - G0))
-# print((-H0@dx))
+# # x = [2,2]
+
+# # plot(x)
+# N = 100
+
+# Z = np.array([[fun([x,y]) for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
+# U = np.array([[jac([x,y])[0] for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
+# V = np.array([[jac([x,y])[1] for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
+# X = np.array([[x for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
+# Y = np.array([[y for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
+# print(Z)
+
+# # fig = plt.figure()
+# # ax = fig.add_subplot(111, projection='3d')
+
+# # # Tracé de la surface
+# # surf = ax.plot_surface(X, Y, Z)
+# # plt.show()
+
+# plt.streamplot(X, Y, -U, -V, density=2, arrowsize=2)
+# plt.xlabel('X')
+# plt.ylabel('Y')
+# plt.title('Streamplot of fun(x, y)')
+# plt.show()
+
+
+# results99 = np.array([0,0])
+# results999 = np.array([0,0])
+
+# Ntrials = 20
+
+# for k in range(Ntrials):
+#     print(k)
+#     poly_surf = 4.0 #fun([])
+#     N = 5
+#     x0 = random.rand(2*N)*2
+#     epsilon = 0.1
+#     max_step = 0.1
+
+
+#     x= x0.copy()
+#     surface1 = []
+#     gradient1 = []
+#     for i in range(100):
+#         F, G, H = function(x)
+#         dx = G*epsilon
+#         if(is_pos_def(H)):
+#             dx = linalg.pinv(H)@G
+#             # plt.plot(x.reshape(-1,2)[:,0], x.reshape(-1,2)[:,1], 'kx')
+#         if(linalg.norm(dx) != 0):
+#             dx = dx/linalg.norm(dx)*min(max_step, linalg.norm(dx))        
+#         x += dx
+#         surface1.append((poly_surf-F)/poly_surf)
+#         gradient1.append(linalg.norm(G)/poly_surf)
+        
+#     x= x0.copy()
+#     surface2 = []
+#     gradient2 = []
+#     for i in range(100):
+#         F, G, H = function(x)
+#         dx = G*epsilon
+#         if(linalg.norm(dx) != 0):
+#             dx = dx/linalg.norm(dx)*min(max_step, linalg.norm(dx))
+#         x += dx
+#         surface2.append((poly_surf-F)/poly_surf)
+#         gradient2.append(linalg.norm(G)/poly_surf)
+
+
+
+    # x= x0.copy()
+    # surface3 = []
+    # for i in range(100):
+    #     F, G, H = function(x)
+    #     dx = G*epsilon
+    #     dx = pinv_hessi_diag(x,epsilon)@G
+    #     dx = dx/linalg.norm(dx)*min(max_step, linalg.norm(dx))
+    #     x += dx
+    #     surface3.append((poly_surf-F)/poly_surf)
+        
+    # plot(x)
+    # plt.axis('equal')
+    # plt.show()
+
+#     plt.plot(surface1, color = 'b', label = 'S_hessian')
+#     plt.plot(surface2, color = 'g', label = 'S_gradient')
+#     plt.plot(gradient1, color = 'b', linestyle = '--')
+#     plt.plot(gradient2, color = 'g', linestyle = '--')
+#     # plt.plot(surface3, label = 'S_diag')
+#     results99[0] += sum(np.array(surface1) < 0.95092*0.99)
+#     results99[1] += sum(np.array(surface2) < 0.95092*0.99)
+    
+#     results999[0] += sum(np.array(surface1) < 0.95092*0.999)
+#     results999[1] += sum(np.array(surface2) < 0.95092*0.999)
+
+
+# print(results99/Ntrials)
+# print(results999/Ntrials)
+# plt.plot(0.95092*0.99*np.ones(100), color = 'k',linewidth = 2, label = '99%')
+# #plt.legend()
+# plt.show()
+
+
+
+# N = 4
+# error_hessian = []
+# for i in range(1000):
+#     x = np.random.rand(2*N)
+
+#     F0 = fun(x)
+#     G0 = jac(x)
+#     H0 = hessi(x)
+#     #print(np.round(H0,3))
+
+#     dx = 2*(random.rand(2*N)+0.5)/10
+#     # dx = np.array([0,0,0.01,0.01,0,0])
+#     F1 = fun(x + dx)
+#     G1 = jac(x + dx)
+#     error_hessian.append(linalg.norm(G1 - G0 + H0@dx))
+
+# print("mean = ", np.mean(error_hessian))
+# print("rms  = ", np.mean(np.array(error_hessian)**2)**0.5)
+# plt.plot(error_hessian)
+# plt.show()
+
 
 # plot(x)
-# plt.axis('equal')
+
+
+
+
+# ---------------------------------------------------------------------
+# Test of the gradient modeling
+# ---------------------------------------------------------------------
+
+# R = 0.4
+# Ndrones = 10
+# epsilon = 0.1
+# x = np.random.rand(Ndrones*2)*2
+# plot(x)
+# G_pred = []
+# surface = []
+# for i in range(40):
+#     F, G, H = function(x)
+#     dx = G*epsilon
+#     G_pred.append(-G@G*epsilon)
+#     x += dx
+#     surface.append(F)
+# plot(x)
+
+# plt.title("Evolution of the uncovered surface,\n its increment per iteration and the prediction based on the gradient")
+# plt.plot(surface, label=r'$C(\vec{x})$')
+# plt.plot(np.diff(np.array(surface)), label=r'$\Delta C(\vec{x})$')
+# plt.plot(G_pred, label=r'$\epsilon |\nabla C(\vec{x})|^2$')
+# plt.legend()
+# plt.savefig("evolution_F_DF_G.pdf")
+
+
+################################################################
+################################################################
+################################################################
+
+# R = 1
+# Ndrones = 4
+# epsilon = 0.1
+# rate_ = []
+# stdev_grad = []
+# mean_grad = []
+# stdev_hess = []
+# mean_hess = []
+# for rate in np.arange(0.001, 0.1, 0.005):
+#     rate_.append(rate)
+#     print(rate)
+#     gradient_error = []
+#     hessian_error = []   
+#     for i in range(300):
+#         x = np.random.rand(Ndrones*2)*2
+#         F0, G0, H0 = function(x)
+#         dx = (np.random.rand(Ndrones*2)-0.5)*2*rate
+#         dx = rate*G0
+#         F1, G1, H1 = function(x+dx)
+#         gradient_error.append(((F1-F0) + dx@G0))
+#         hessian_error.append(((F1-F0) + dx@G0 - 0.5*dx@H0@dx))
+
+#     stdev_grad.append(np.std(np.array(gradient_error)))
+#     mean_grad.append(np.mean(np.array(gradient_error)))
+#     stdev_hess.append(np.std(np.array(hessian_error)))
+#     mean_hess.append(np.mean(np.array(hessian_error)))
+#     # plt.plot(hessian_error, label = 'hessian_error')
+#     # plt.plot(np.array(gradient_error)+1, label = 'gradient_error')
+#     # plt.legend()
+#     # plt.show()
+# plt.plot(rate_, stdev_grad, label = 'stdev_grad')
+# plt.plot(rate_, mean_grad, label = 'mean_grad')
+
+
+# plt.plot(rate_, stdev_hess, label = 'stdev_hess')
+# plt.plot(rate_, mean_hess, label = 'mean_hess')
+# plt.legend()
+# plt.show()
+
+
+
+################################################################
+# evaluation du gradient
+################################################################
+
+# def funny(x, a):
+#     return a*x**2
+# R = 0.5
+# scale = arange(0.001,0.1,0.01)
+# error = []
+# error2 = []
+# for rate in scale:
+#     print(rate)
+#     error_bis = []
+#     error_tris = []
+#     for k in range(100):
+#         x = np.random.rand(2)*2
+#         F0, G0, H0 = function(x)
+#         dx = (np.random.rand(2)-0.5)*2*rate
+#         F1, G1, H1 = function(x+dx)
+#         error_bis.append(F1 - F0 + dx@G0)
+#         error_tris.append(F1 - F0 + dx@(G0 - H0@dx/2))
+#     error.append(np.std(error_bis))
+#     error2.append(np.std(error_tris))
+# plt.plot(scale, error, label = 'error')
+# plt.plot(scale, error2, label = 'error2')
+# import scipy
+# a = (scipy.optimize.curve_fit(funny, scale, error))[0][0]
+# plt.plot(scale,a*scale**2, label = 'fit')
+# print(a)
+# plt.legend()
 # plt.show()
