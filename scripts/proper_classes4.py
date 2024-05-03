@@ -78,25 +78,20 @@ class Circle():
     def compute_gradient(self):
         if(len(self.points)==0):
             return zeros(2)
-        try:
-            gradient = zeros(2)
-            if(self.points[0].Cin == self):
-                self.points = self.points[1:] + self.points[0:1]
-            for i in range(0, len(self.points),2):
-                gradient -= self.points[i+1].P - self.points[i].P
-            gradient = array([-gradient[1], gradient[0]])
-            self.gradient = gradient
-            return gradient
-        except:
-            return zeros(2)
+        gradient = zeros(2)
+        if(self.points[0].Cin == self):
+            self.points = self.points[1:] + self.points[0:1]
+        for i in range(0, len(self.points),2):
+            gradient -= self.points[i+1].P - self.points[i].P
+        gradient = array([-gradient[1], gradient[0]])
+        self.gradient = gradient
+        return gradient
+
     
-    def integrate(self, plot=False):
+    def integrate(self, segments, plot=False):
         self.edges = []
-        try:
-            for i in range(0, len(self.points),2):
-                self.edges.append([self.points[i].P,self.points[i+1].P])
-        except:
-            return -1
+        for i in range(0, len(self.points),2):
+            self.edges.append([self.points[i].P,self.points[i+1].P])
         integral = 0
         for edge in self.edges:
             theta1 = arctan2(edge[0][1] - self.C[1],edge[0][0] - self.C[0])
@@ -110,9 +105,22 @@ class Circle():
                 y = self.C[1] + self.r*sin(theta)
                 plt.plot(x,y, 'b')
             integral -= self.r**2*(theta2-theta1)/2 + np.cross(self.C, edge[1] - edge[0])/2
-        
         if(self.isolated):
-            integral -= pi*self.r**2
+            vector = np.array([self.C, np.array([1.0,0])])
+            intersections = []
+            for segment in segments:
+                A = segment.P1
+                B = segment.P2
+                AB = B - A
+                if(np.cross(vector[1], AB)):
+                    t = np.cross(A - vector[0], vector[1]) / np.cross(vector[1], AB)
+                    if 0 <= t <= 1:
+                        intersection = A + t * AB
+                        intersections.append(intersection)    
+            intersections = [x for x in list(map(lambda x: (x - self.C)@(np.array([1.0,0]))/self.r, intersections))]
+            intersections = [x for x in list(filter(lambda x: x < -1, intersections))]
+            if(len(intersections) %2 == 1):
+                integral -= pi*self.r**2
         return integral
 
     def plot(self):
@@ -241,7 +249,7 @@ class Graph():
                 point.plot()
         for circle in self.circles:
             circle.plot()
-            circle.integrate(plot=True)
+            circle.integrate(self.segments, plot=True)
             for point in circle.points:
                 point.plot()
         
@@ -249,7 +257,7 @@ class Graph():
     def integral(self):
         integral = 0
         for circle in self.circles:
-            integral += circle.integrate()
+            integral += circle.integrate(self.segments)
         for segment in self.segments:
             integral += segment.integrate()
         return integral
@@ -287,7 +295,7 @@ iii = 0
 def plot(x):
     global iii  # Add this line to access the global variable iii
     graph = Graph()
-    graph.polygon(array([[-1,-1],[-1,1],[1,1],[1,-1]])*0.9)
+    graph.polygon(array([[-1,-1],[-1,1],[1,1],[1,-1]]))
     positions = np.reshape(x, (-1,2))
 
     for position in positions:
@@ -336,10 +344,12 @@ def pinv_hessi_diag(x, epsilon):
 
 
 
-
-# xb = [-0.3740442, -1.99896368, -0.28323218, -1.84930609,  1.83896229,  1.47239203]
+R = 0.5
+# xb = [0,-2]
 # xb = np.array(xb)
 # plot(xb)
+# print(function(xb))
+
 # try:
 #     for i in range(100):
 #         x = np.random.rand(6)*4 - 2
@@ -348,11 +358,11 @@ def pinv_hessi_diag(x, epsilon):
 #     print(x)
 
 
-N = 30
+N = 60
 
-Z = np.array([[fun([x,y,1,1]) for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
-U = np.array([[jac([x,y,1,1])[0] for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
-V = np.array([[jac([x,y,1,1])[1] for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
+Z = np.array([[fun([x,y]) for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
+U = np.array([[jac([x,y])[0] for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
+V = np.array([[jac([x,y])[1] for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
 X = np.array([[x for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
 Y = np.array([[y for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
 print(Z)
@@ -368,6 +378,9 @@ plt.streamplot(X, Y, -U, -V, density=2, arrowsize=2)
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.title('Streamplot of fun(x, y)')
+polygon = array([[-1,-1],[-1,1],[1,1],[1,-1],[-1,-1]]) 
+plt.plot(polygon.T[0], polygon.T[1], 'k')
+plt.axis('equal')
 plt.show()
 
 
