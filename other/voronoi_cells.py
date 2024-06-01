@@ -46,7 +46,6 @@ def centroids(points, polygon, plot = False):
         G = center_of_mass(np.array(vertices))
         P = np.array([site.x, site.y])
         gradient[i] = G - P
-        plt.plot(site.x, site.y, 'rx')
         if(plot):
             plt.plot(site.x, site.y, 'bo')
             plt.text(site.x,site.y, str(site.name))
@@ -116,7 +115,7 @@ def minimax(points, polygon, plot = False):
         G = smallest_enclosing_circle(np.array(vertices))
         P = np.array([site.x, site.y])
         gradient[i] = G - P
-        plt.plot(site.x, site.y, 'rx')
+        # plt.plot(site.x, site.y, 'rx')
         if(plot):
             plt.plot(site.x, site.y, 'bo')
             plt.text(site.x,site.y, str(site.name))

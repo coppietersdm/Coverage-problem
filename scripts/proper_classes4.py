@@ -127,7 +127,7 @@ class Circle():
         theta = linspace(0,2*pi, 1000)
         plt.plot(self.C[0] + self.r*cos(theta), self.C[1] + self.r*sin(theta), 'k')
         plt.plot(self.C[0], self.C[1], 'ro')
-        plt.text(self.C[0], self.C[1], str(self.N))
+        # plt.text(self.C[0], self.C[1], str(self.N))
         plt.arrow(self.C[0], self.C[1], self.gradient[0], self.gradient[1])
 
 class Segment():
@@ -177,7 +177,7 @@ class Segment():
     
     def plot(self):
         plt.plot([self.P1[0], self.P2[0]],[self.P1[1], self.P2[1]], 'r')
-        plt.text((self.P1[0] + self.P2[0])/2,(self.P1[1] + self.P2[1])/2,str(self.N))
+        # plt.text((self.P1[0] + self.P2[0])/2,(self.P1[1] + self.P2[1])/2,str(self.N))
 
 class Point():
     N = 0
@@ -196,7 +196,7 @@ class Point():
     
     def plot(self):
         plt.plot(self.P[0], self.P[1], 'bo')
-        plt.text(self.P[0], self.P[1], str(self.order))   
+        # plt.text(self.P[0], self.P[1], str(self.order))   
         
 class Graph():
     def __init__(self):
@@ -289,13 +289,13 @@ class Graph():
                     
         return H/2
 
+default_polygon = array([[0,0],[0,100],[100,100],[100,0]])
+default_radius = 6
 
-R = 0.5
-iii = 0
-def plot(x):
+def plot(x, polygon=default_polygon, R=default_radius):
     global iii  # Add this line to access the global variable iii
     graph = Graph()
-    graph.polygon(array([[-1,-1],[-1,1],[1,1],[1,-1]]))
+    graph.polygon(polygon)
     positions = np.reshape(x, (-1,2))
 
     for position in positions:
@@ -304,11 +304,11 @@ def plot(x):
     graph.plot()
 
     plt.axis('equal')
-    plt.show()
+    # plt.show()
             
-def function(x):
+def function(x, polygon=default_polygon, R=default_radius):
     graph = Graph()
-    graph.polygon(array([[-1,-1],[-1,1],[1,1],[1,-1]]))
+    graph.polygon(polygon)
     positions = np.reshape(x, (-1,2))
 
     for position in positions:
@@ -317,55 +317,97 @@ def function(x):
     graph.compute_gradients()
     #graph.plot_positions()
     return graph.integral(), graph.graph_gradient(), graph.graph_hessian()
+
     
-from scipy.optimize import minimize
 
+def fun(x, polygon=default_polygon, R=default_radius):
+    return function(x, polygon=polygon, R=R)[0]
 
-def fun(x):
-    return function(x)[0]
+def jac(x, polygon=default_polygon, R=default_radius):
+    return -function(x, polygon=polygon, R=R)[1]
 
-def jac(x):
-    return -function(x)[1]
+def hessi(x, polygon=default_polygon, R=default_radius):
+    return -function(x, polygon=polygon, R=R)[2]
 
-def hessi(x):
-    return -function(x)[2]
-
-def pinv_hessi_diag(x, epsilon):
+def pinv_hessi_diag(x, polygon=default_polygon, R=default_radius):
     hessi = function(x)[2]
     H = hessi*0
     for i in range(len(x)//2):
         if(is_pos_def(hessi[2*i:2*i+2,2*i:2*i+2])):
             H[2*i:2*i+2,2*i:2*i+2] = linalg.pinv(hessi[2*i:2*i+2,2*i:2*i+2])
         else:
-            H[2*i:2*i+2,2*i:2*i+2] = eye(2)*epsilon
+            H[2*i:2*i+2,2*i:2*i+2] = eye(2)
     return H
 
+def pinv_hessi(x, polygon=default_polygon, R=default_radius):
+    H = hessi(x, polygon=polygon, R=R)
+    if(is_pos_def(H)):
+        return linalg.pinv(H)
+    else:
+        return eye(len(x))
 
 
 
 
-R = 0.5
-# xb = [0,-2]
-# xb = np.array(xb)
-# plot(xb)
-# print(function(xb))
+def algorithm1(x, polygon = default_polygon, R=default_radius):
+    return -jac(x, polygon=polygon, R=R)
 
-# try:
-#     for i in range(100):
-#         x = np.random.rand(6)*4 - 2
-#         plot(x)
-# except:
-#     print(x)
+def algorithm2(x, polygon = default_polygon, R=default_radius):
+    H = pinv_hessi_diag(x, polygon=polygon, R=R)
+    return -H@jac(x, polygon=polygon, R=R)
+
+def algorithm3(x, polygon = default_polygon, R=default_radius):
+    H = pinv_hessi(x, polygon=polygon, R=R)
+    return -H@jac(x, polygon=polygon, R=R)
+
+def algorithm4(x, polygon = default_polygon, R=default_radius):
+    H = pinv_hessi_diag(x, polygon=polygon, R=R)
+    return (1-H/2)@jac(x, polygon=polygon, R=R)
+
+def max_step(dx, d):
+    dx = dx.reshape((-1,2))
+    for i, dxi in enumerate(dx):
+        if linalg.norm(dxi) > d:
+            dx[i] = dxi/linalg.norm(dxi)*d
+    return dx.reshape(-1)
 
 
-N = 60
 
-Z = np.array([[fun([x,y]) for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
-U = np.array([[jac([x,y])[0] for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
-V = np.array([[jac([x,y])[1] for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
-X = np.array([[x for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
-Y = np.array([[y for x in linspace(-2,2, N)] for y in linspace(-2,2,N)])
-print(Z)
+
+
+
+
+
+
+
+
+
+# polygon = (np.array([[1.5, 0], [-2, -2.5], [-2,2.5],[1.5, 0]]))*0.9
+# R = 1
+# x = np.random.rand(3*2)
+# for i in range(200):
+#     x -= 0.1*jac(x, polygon = polygon, R=R)
+
+# print(function(x, polygon = polygon, R=R))
+# print(function([], polygon = polygon, R=R))
+# print(x)
+# plot(x, polygon=polygon,R=R)
+# plt.show()
+
+
+
+
+
+
+R = 1.0
+
+N = 30
+
+Z = np.array([[fun([x,y], polygon = array([[0,0],[0,1],[1,1],[1,0]])*1.8,R = 1.0) for x in linspace(-1.2,3, N)] for y in linspace(-1.2,3,N)])
+U = np.array([[jac([x,y], polygon = array([[0,0],[0,1],[1,1],[1,0]])*1.8,R = 1.0)[0] for x in linspace(-1.2,3, N)] for y in linspace(-1.2,3,N)])
+V = np.array([[jac([x,y], polygon = array([[0,0],[0,1],[1,1],[1,0]])*1.8,R = 1.0)[1] for x in linspace(-1.2,3, N)] for y in linspace(-1.2,3,N)])
+X = np.array([[x for x in linspace(-1.2,3, N)] for y in linspace(-1.2,3,N)])
+Y = np.array([[y for x in linspace(-1.2,3, N)] for y in linspace(-1.2,3,N)])
 
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
@@ -374,13 +416,14 @@ ax = fig.add_subplot(111, projection='3d')
 surf = ax.plot_surface(X, Y, Z)
 plt.show()
 
-plt.streamplot(X, Y, -U, -V, density=2, arrowsize=2)
+plt.streamplot(X, Y, -U, -V, density=2, arrowsize=2, color=np.sqrt(U*U+V*V), cmap='viridis')
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.title('Streamplot of fun(x, y)')
-polygon = array([[-1,-1],[-1,1],[1,1],[1,-1],[-1,-1]]) 
+polygon = (array([[-1,-1],[-1,1],[1,1],[1,-1],[-1,-1]])+1)*0.9
 plt.plot(polygon.T[0], polygon.T[1], 'k')
 plt.axis('equal')
+plt.colorbar(label='Intensity')
 plt.show()
 
 
@@ -591,3 +634,5 @@ plt.show()
 # print(a)
 # plt.legend()
 # plt.show()
+
+
