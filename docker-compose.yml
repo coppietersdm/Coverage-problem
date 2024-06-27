@@ -1,0 +1,20 @@
+services:
+  crazyflie-coverage:
+    container_name: crazyflie-coverage
+    build:
+      dockerfile: DockerFile
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    ipc: host
+    pid: host
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_GRAPHICSSYSTEM=native 
+    stdin_open: true
+    tty: true
+    volumes:
+        - /tmp/.X11-unix:/tmp/.X11-unix:rw
+        - ./rosbot_pro.rviz:/root/.rviz2/default.rviz
+        - $HOME/.Xauthority:/root/.Xauthority
+    command: ros2 launch crazyflie launch.py use_sim_time:=True backend:=sim 

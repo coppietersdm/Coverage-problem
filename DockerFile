@@ -1,0 +1,49 @@
+# Use the official ROS2 Docker image as the base image
+FROM osrf/ros:humble-desktop-full
+
+WORKDIR /coverage_crazyflie_ws
+SHELL ["/bin/bash", "-c"]
+
+# Install build dependencies
+RUN apt-get update -y && apt-get install -y \
+    build-essential\
+    libusb-1.0-0-dev
+
+RUN apt-get install -y python3-pip 
+RUN apt-get install libqt5gui5
+RUN apt-get install -y libboost-program-options-dev \
+                        libusb-1.0-0-dev \
+                        ros-${ROS_DISTRO}-motion-capture-tracking \
+                        ros-${ROS_DISTRO}-tf-transformations 
+
+RUN pip3 install rowan nicegui cflib transforms3d
+
+RUN echo hello
+
+RUN cd /coverage_crazyflie_ws && mkdir src
+RUN git clone https://github.com/coppietersdm/crazyswarm2 --recursive /coverage_crazyflie_ws/src/crazyswarm2
+RUN git clone 
+
+RUN cd /coverage_crazyflie_ws &&\
+    source /opt/ros/${ROS_DISTRO}/setup.bash &&\
+    apt-get update -y &&\
+    apt-get install -y python3-rosdep \
+    && source /opt/ros/${ROS_DISTRO}/setup.bash \
+    && rm /etc/ros/rosdep/sources.list.d/20-default.list \
+    && rosdep init \
+    && rosdep update \
+    && rosdep install -i --from-path src --rosdistro ${ROS_DISTRO} -y \
+    && colcon build 
+
+RUN apt install -y ros-${ROS_DISTRO}-rviz2
+RUN pip3 install pygame
+
+COPY ros_entrypoint.sh /sbin/ros_entrypoint.sh
+RUN chmod 755 /sbin/ros_entrypoint.sh
+ENTRYPOINT ["/sbin/ros_entrypoint.sh"]
+
+RUN echo "source /opt/ros/<distro>/setup.bash" >> ~/.bashrc
+RUN echo "source /coverage_crazyflie_ws/install/setup.bash" >> ~/.bashrc
+RUN strip --remove-section=.note.ABI-tag /usr/lib/x86_64-linux-gnu/libQt5Core.so.5
+
+CMD ["ros2", "run", "rviz2", "rviz2", "bash"]
