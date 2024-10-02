@@ -72,6 +72,9 @@ class Circle():
                         break
                     else:
                         self.points[j%len(self.points)].order += 1
+
+            
+    def remove_inner_points(self):
         self.points = list(filter(lambda x: x.order == 0, self.points))
 
     def compute_gradient(self):
@@ -91,8 +94,9 @@ class Circle():
         if(self.isolated):
             self.Rgradient += 2*pi*self.r
         return gradient
+
     
-    def integrate(self, plot=False):
+    def integrate(self, segments, plot=False):
         self.edges = []
         for i in range(0, len(self.points),2):
             self.edges.append([self.points[i].P,self.points[i+1].P])
@@ -102,18 +106,29 @@ class Circle():
             theta2 = arctan2(edge[1][1] - self.C[1],edge[1][0] - self.C[0])
             if(theta1 > theta2):
                 theta2 += 2*pi
-
+            
             if(plot):
-                theta = linspace(theta1, theta2, 10000)
+                theta = linspace(theta1, theta2, 100)
                 x = self.C[0] + self.r*cos(theta)
                 y = self.C[1] + self.r*sin(theta)
                 plt.plot(x,y, 'b')
             integral -= self.r**2*(theta2-theta1)/2 + np.cross(self.C, edge[1] - edge[0])/2
-            # dx = diff(x)
-            # dy = diff(y)
-            # integral += (dx@y[1:] - dy@x[1:])/2
         if(self.isolated):
-            integral -= pi*self.r**2
+            vector = np.array([self.C, np.array([1.0,0])])
+            intersections = []
+            for segment in segments:
+                A = segment.P1
+                B = segment.P2
+                AB = B - A
+                if(np.cross(vector[1], AB)):
+                    t = np.cross(A - vector[0], vector[1]) / np.cross(vector[1], AB)
+                    if 0 <= t <= 1:
+                        intersection = A + t * AB
+                        intersections.append(intersection)    
+            intersections = [x for x in list(map(lambda x: (x - self.C)@(np.array([1.0,0]))/self.r, intersections))]
+            intersections = [x for x in list(filter(lambda x: x < -1, intersections))]
+            if(len(intersections) %2 == 1):
+                integral -= pi*self.r**2
         return integral
 
     def plot(self):
@@ -140,30 +155,32 @@ class Segment():
         self.points.append(Point(self.P1, None, self))
         self.points.append(Point(self.P2, self, None))
         self.points.sort(key = lambda x: (x.P-self.P1)@(self.P2-self.P1))
+
         for i in range(len(self.points)):
             s = (self.points[i].P - self.P1)@(self.P2-self.P1)/linalg.norm(self.P2-self.P1)**2
+
             if(self.points[i].Cin == self):
                 for j in range(i+1, len(self.points)):
                     if(self.points[j].Cin == self.points[i].Cout):
                         break
                     else:
                         self.points[j].order += 1
+            if(self.points[i].Cin == None):
+                for j in range(0,i):
+                    self.points[j].order += 1
+                    
+    def remove_inner_points(self):
         self.points = [x for x in filter(lambda x: x.order == 0, self.points)]
 
     def integrate(self, plot = False):
         integral = 0
-        
         for i in range(1,len(self.points),2):
             AA = self.points[i-1].P
             BB = self.points[i].P
             if(plot):
                 plt.plot([self.points[i-1].P[0], self.points[i].P[0]],[self.points[i-1].P[1], self.points[i].P[1]], 'b')
-            # x = linspace(self.points[i-1].P[0], self.points[i].P[0], 10000)
-            # y = linspace(self.points[i-1].P[1], self.points[i].P[1], 10000)
-            # dx = diff(x)
-            # dy = diff(y)
             integral += (AA[1]*BB[0] - AA[0]*BB[1])/2
-        
+            
         return integral
     
     def plot(self):
@@ -211,11 +228,18 @@ class Graph():
             for j in range(len(self.segments)):
                 self.circles[i].CS_intersection(self.segments[j])
         
-        for circle in self.circles:
-            circle.filter_points()
-            circle.compute_gradient()
         for segment in self.segments:
             segment.filter_points()
+        for circle in self.circles:
+            circle.filter_points()
+            
+        for segment in self.segments:
+            segment.remove_inner_points()
+        for circle in self.circles:
+            circle.remove_inner_points()
+            
+        for circle in self.circles:
+            circle.compute_gradient()
     
     def polygon(self, lst):
         for i in range(len(lst)):
@@ -226,21 +250,22 @@ class Graph():
             plt.plot(circle.C[0], circle.C[1], 'r+')
     
     def plot(self):
-        for circle in self.circles:
-            circle.plot()
-            circle.integrate(plot=True)
-            for point in circle.points:
-                point.plot()
         for segment in self.segments:
             segment.plot()
             segment.integrate(plot=True)
             for point in segment.points:
                 point.plot()
+        for circle in self.circles:
+            circle.plot()
+            circle.integrate(self.segments, plot=True)
+            for point in circle.points:
+                point.plot()
+        
     
     def integral(self):
         integral = 0
         for circle in self.circles:
-            integral += circle.integrate()
+            integral += circle.integrate(self.segments)
         for segment in self.segments:
             integral += segment.integrate()
         return integral
@@ -250,7 +275,7 @@ class Graph():
         for i in range(len(self.circles)):
             gradient[2*i:2*i+2] = self.circles[i].gradient
         return gradient
-
+    
     def graph_hessian(self):
         H = zeros((2*len(self.circles), 2*len(self.circles)))
         for circle in self.circles:
@@ -272,9 +297,6 @@ class Graph():
                     
         return H/2
     
-
-R = 0.5
- 
 def plot(x):
     graph = Graph()
     graph.polygon(array([[-1,-1],[-1,1],[1,1],[1,-1]])+1)
@@ -300,43 +322,53 @@ def function(x):
         rgrad += circle.Rgradient
     return graph.integral(), graph.graph_gradient(), graph.graph_hessian(), rgrad
     
-from scipy.optimize import minimize
+# def plot(x, polygon):
+#     global iii  # Add this line to access the global variable iii
+#     graph = Graph()
+#     graph.polygon(array(polygon))
+#     positions = np.reshape(x, (-1,2))
 
+#     for position in positions:
+#         graph.circles.append(Circle(position, R))
+#     graph.compute_gradients()
+#     graph.plot()
+#     plt.axis('equal')
+#     plt.show()
+    
+# def function(x, polygon):
+#     graph = Graph()
+#     graph.polygon(polygon)
+#     positions = np.reshape(x, (-1,2))
+
+#     for position in positions:
+#         graph.circles.append(Circle(position, R))
+        
+#     graph.compute_gradients()
+#     #graph.plot_positions()
+#     return graph.integral(), graph.graph_gradient(), graph.graph_hessian()
 
 def fun(x):
     return function(x)[0]
 
-def jac(x):
-    return -function(x)[1]
-
-def hessi_diag(x):
-    hessi = -function(x)[2]
-    H = hessi*0
-    for i in range(len(x)//2):
-        H[2*i:2*i+2,2*i:2*i+2] = hessi[2*i:2*i+2,2*i:2*i+2]
-    return H
+# def hessi_diag(x):
+#     hessi = -function(x)[2]
+#     H = hessi*0
+#     for i in range(len(x)//2):
+#         H[2*i:2*i+2,2*i:2*i+2] = hessi[2*i:2*i+2,2*i:2*i+2]
+#     return H
 
 def rgrad(x):
     return function(x)[3]
 
 
-###############
-#MORE DRONES
-##############
+################
+####EXAMPLE#####
+################
 
+R = 0.4
 poly_surf = fun([])
-N = 10
+N = 9
 x = random.rand(2*N)*2
-
-# F1 = fun(x)
-# plot(x)
-# R += 0.001
-# F2 = fun(x)
-
-# print(F2-F1)
-# print(rgrad(x)*0.001)
-# plt.axis('equal')
-# plt.show()
 
 surface = []
 prediction = []
@@ -348,22 +380,22 @@ plot(x)
 plt.axis('equal')
 plt.show()
 
-for i in range(200):
+for i in range(100):
     F, G, H, rgrad = function(x)
     dx = G*epsilon
+    prediction.append(G@G * epsilon)
+    hessian_prediction.append(G@dx - 0.5*dx@(H@dx))
     x += dx
     surface.append((poly_surf-F)/poly_surf)
-    prediction.append(-G@G * epsilon)
-    hessian_prediction.append(G@dx - 0.5*dx@(H@dx))
-    R += -0.001*(rgrad+3+linalg.norm(G))
+    # R += -0.001*(rgrad+3+linalg.norm(G))
     
 plot(x)
 plt.axis('equal')
 plt.show()
 
 
-plt.plot(surface, label = 'dS')
-plt.show()
+# plt.plot(surface, label = 'dS')
+# plt.show()
 
 plt.title("Evolution of the uncovered surface,\n its increment per iteration and the prediction based on the gradient")
 plt.plot(surface, label=r'$C(\vec{x})$')
