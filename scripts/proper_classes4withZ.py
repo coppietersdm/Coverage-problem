@@ -1,5 +1,6 @@
 from numpy import *
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 
 def is_pos_def(x):
@@ -18,14 +19,14 @@ class Circle():
         self.gradient = zeros(2)
         self.edges = []
         self.isolated = False
-        self.Rgradient = 0
+        self.Rgradient = 0  #666 what is this?
         
     def clean(self):
         self.points = []
         self.gradient *= 0
         self.edges = []
         self.isolated = False
-        self.Rgradient = 0
+        self.Rgradient = 0 #666 what is this?
         
     def CC_intersection(self, circle):
         D = circle.C - self.C
@@ -101,14 +102,16 @@ class Circle():
             theta2 = arctan2(edge[1][1] - self.C[1],edge[1][0] - self.C[0])
             if(theta1 > theta2):
                 theta2 += 2*pi
-            theta = linspace(theta1, theta2, 10000)
-            x = self.C[0] + self.r*cos(theta)
-            y = self.C[1] + self.r*sin(theta)
+
             if(plot):
+                theta = linspace(theta1, theta2, 10000)
+                x = self.C[0] + self.r*cos(theta)
+                y = self.C[1] + self.r*sin(theta)
                 plt.plot(x,y, 'b')
-            dx = diff(x)
-            dy = diff(y)
-            integral += (dx@y[1:] - dy@x[1:])/2
+            integral -= self.r**2*(theta2-theta1)/2 + np.cross(self.C, edge[1] - edge[0])/2
+            # dx = diff(x)
+            # dy = diff(y)
+            # integral += (dx@y[1:] - dy@x[1:])/2
         if(self.isolated):
             integral -= pi*self.r**2
         return integral
@@ -151,13 +154,15 @@ class Segment():
         integral = 0
         
         for i in range(1,len(self.points),2):
+            AA = self.points[i-1].P
+            BB = self.points[i].P
             if(plot):
                 plt.plot([self.points[i-1].P[0], self.points[i].P[0]],[self.points[i-1].P[1], self.points[i].P[1]], 'b')
-            x = linspace(self.points[i-1].P[0], self.points[i].P[0], 10000)
-            y = linspace(self.points[i-1].P[1], self.points[i].P[1], 10000)
-            dx = diff(x)
-            dy = diff(y)
-            integral += (dx@y[1:] - dy@x[1:])/2
+            # x = linspace(self.points[i-1].P[0], self.points[i].P[0], 10000)
+            # y = linspace(self.points[i-1].P[1], self.points[i].P[1], 10000)
+            # dx = diff(x)
+            # dy = diff(y)
+            integral += (AA[1]*BB[0] - AA[0]*BB[1])/2
         
         return integral
     
@@ -245,9 +250,28 @@ class Graph():
         for i in range(len(self.circles)):
             gradient[2*i:2*i+2] = self.circles[i].gradient
         return gradient
+
+    def graph_hessian(self):
+        H = zeros((2*len(self.circles), 2*len(self.circles)))
+        for circle in self.circles:
+            for point in circle.points:
+                SH = zeros((2*len(self.circles), 2*len(self.circles)))
+                if(type(point.Cin) == type(point.Cout)):
+                    i = point.Cin.N; j = point.Cout.N
+                    SH[2*i:2*i+2,2*i:2*i+2] = -point.h
+                    SH[2*i:2*i+2,2*j:2*j+2] = point.h
+                    SH[2*j:2*j+2,2*i:2*i+2] = point.h.T
+                    SH[2*j:2*j+2,2*j:2*j+2] = -point.h.T
+                elif(point.Cin == circle):
+                    i = circle.N
+                    SH[2*i:2*i+2,2*i:2*i+2] = -2*point.h
+                else:
+                    j = circle.N
+                    SH[2*j:2*j+2,2*j:2*j+2] = -2*point.h.T
+                H += SH
+                    
+        return H/2
     
-
-
 
 R = 0.5
  
@@ -274,7 +298,7 @@ def function(x):
     rgrad = 0
     for circle in graph.circles:
         rgrad += circle.Rgradient
-    return graph.integral(), graph.graph_gradient(), rgrad
+    return graph.integral(), graph.graph_gradient(), graph.graph_hessian(), rgrad
     
 from scipy.optimize import minimize
 
@@ -294,10 +318,14 @@ def hessi_diag(x):
 
 def rgrad(x):
     return function(x)[3]
-        
+
+
+###############
+#MORE DRONES
+##############
 
 poly_surf = fun([])
-N = 4
+N = 10
 x = random.rand(2*N)*2
 
 # F1 = fun(x)
@@ -316,8 +344,6 @@ epsilon = 0.1
 hessian_prediction = []
 hessian_diagonal_prediction = []
 
-max_step = 0.1
-
 plot(x)
 plt.axis('equal')
 plt.show()
@@ -327,7 +353,7 @@ for i in range(200):
     dx = G*epsilon
     x += dx
     surface.append((poly_surf-F)/poly_surf)
-    prediction.append(G@G * epsilon)
+    prediction.append(-G@G * epsilon)
     hessian_prediction.append(G@dx - 0.5*dx@(H@dx))
     R += -0.001*(rgrad+3+linalg.norm(G))
     
@@ -339,24 +365,13 @@ plt.show()
 plt.plot(surface, label = 'dS')
 plt.show()
 
+plt.title("Evolution of the uncovered surface,\n its increment per iteration and the prediction based on the gradient")
+plt.plot(surface, label=r'$C(\vec{x})$')
+plt.plot(np.diff(np.array(surface)), label=r'$\Delta C(\vec{x})$')
+plt.plot(prediction, label=r'$\epsilon |\nabla C(\vec{x})|^2$')
+plt.legend()
+plt.savefig("evolution_F_DF_G.pdf")
 
 
-# F0 = fun(x)
-# G0 = jac(x)
-# H0 = hessi(x)
-# print(np.round(H0,3))
 
-# dx = random.rand(2*N)/1000
-# # dx = np.array([0,0,0.01,0.01,0,0])
 
-# F1 = fun(x + dx)
-# print(F1-F0)
-# print(G0@dx)
-
-# G1 = jac(x + dx)
-# print((G1 - G0))
-# print((-H0@dx))
-
-# plot(x)
-# plt.axis('equal')
-# plt.show()
